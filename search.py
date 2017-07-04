@@ -3,10 +3,12 @@ import requests
 import csv
 import datetime
 import logging as log
+import threading
+import time
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from urllib import parse
-from bs4 import BeautifulSoup 
+from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor
 from time import sleep
 
@@ -14,14 +16,12 @@ from time import sleep
 __author__ = 'Eugene Oh'
 
 class SearchRange (object):
-
-    def __init__ (self, rate_delay, error_delay=5):
-        self.rate_delay = rate_delay
+    def __init__ (self, error_delay=5):
         self.error_delay = error_delay
-        self.counter = 0
+        self.lock = threading.Lock()
 
-    def search (self, since, until, query):
-        
+    def searchRange (self, since, until, query):
+
         url = self.getURL(since, until, query)
         response = self.getResponse(url)
 
@@ -30,10 +30,10 @@ class SearchRange (object):
         self.save_tweets(tweets)
 
     def getResponse(self, url):
-        pause = 0.5
+        pause = 0.7
         driver = webdriver.Chrome(executable_path=r"..\..\Windows\webdrivers\chromedriver.exe")
         driver.get(url)
-        
+
         lastHeight = driver.execute_script("return document.body.scrollHeight")
         while True:
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
@@ -42,10 +42,12 @@ class SearchRange (object):
             if newHeight == lastHeight:
                 break
             lastHeight = newHeight
-        
+
         page_source = driver.page_source
+        driver.close()
 
         return page_source
+
 
 
     def getURL (self, since, until, query):
@@ -53,7 +55,7 @@ class SearchRange (object):
             'f':'tweets',
             'q':query + ' since:' + str(since)[:10] + ' until:' + str(until)[:10]
         }
-        
+
         url_tupple = ('https', 'twitter.com', '/search', '', parse.urlencode(params), '')
         return parse.urlunparse(url_tupple)
 
@@ -61,15 +63,14 @@ class SearchRange (object):
     def parse(items_html):
         soup = BeautifulSoup (items_html, "html.parser")
         tweets = []
-
         for li in soup.find_all("li", class_='js-stream-item'):
             if 'data-item-id' not in li.attrs:
                 continue
-            
+
             tweet = {
+                'user_id': None,
                 'tweet_id' : li['data-item-id'],
                 'created_at' : None,
-                'user_id': None,
                 'user_name' : None,
                 'text' : None,
                 'num_word' : None,
@@ -95,7 +96,10 @@ class SearchRange (object):
             # Tweet date
             date = li.find("span", class_="_timestamp")
             if date is not None:
-                tweet['created_at'] = float(date['data-time-ms'])
+                time = float(date['data-time-ms'])
+                t = datetime.datetime.fromtimestamp((time/1000))
+                fmt = "%Y-%m-%d %H:%M:%S"
+                tweet['created_at'] = t.strftime(fmt)
 
             # Tweet Retweets
             retweets = li.select("span.ProfileTweet-action--retweet > span.ProfileTweet-actionCount")
@@ -125,38 +129,67 @@ class SearchRange (object):
                 tweet['image'] = 1
             else:
                 tweet['image'] = 0
-            
+
             tweets.append(tweet)
-
         return tweets
-    
+
     def save_tweets(self, tweets):
-
         for tweet in tweets:
-            # Lets add a counter so we only collect a max number of tweets
-            self.counter += 1
-
+            # Print out tweets
             if tweet['created_at'] is not None:
-               t = datetime.datetime.fromtimestamp((tweet['created_at']/1000))
-               fmt = "%Y-%m-%d %H:%M:%S"
-               log.info("%i [%s] - %s - %i - %i - %i - %i - %i" % (self.counter, t.strftime(fmt), tweet['text'], tweet['num_replies'], tweet['num_favorites'],tweet['link'], tweet['image'], tweet['num_word']))
+                log.info("%i [%s] - %s" % (self.counter, str(tweet['created_at']), tweet['text']))
 
+class TwitterSearch (SearchRange):
+    # Constructor takes rate_delay_seconds and error_delay_seconds and until and threads
+    def __init__ (self, error_delay_seconds, since, until, threads):
 
+        #Initialize Variables
+        super(TwitterSearch, self).__init__(error_delay_seconds)
+        self.since = since
+        self.until = until
+        self.threads = threads
+        self.alltweets = []
+    def search(self, query):
+        n_days = (self.until-self.since).days
+        tp = ThreadPoolExecutor(max_workers=self.threads)
+        print (n_days)
+        for i in range (0, n_days, 1):
+            since_range = self.since + datetime.timedelta(days=i)
+            until_range = self.since + datetime.timedelta(days=(i+1))
+            if until_range > self.until:
+                until_range = self.until
+
+            #print ("Searching from %s to %s" % (str(since_range), str(until_range)))
+            tp.submit(self.searchRange, since_range, until_range, query)
+
+        tp.shutdown(wait = True)
+        return self.alltweets
+
+    def save_tweets(self, tweets):
+        with self.lock:
+            self.alltweets.extend(tweets)
 
 if __name__ == '__main__':
-    log.basicConfig(level=log.INFO)
+    #log.basicConfig(level=log.INFO)
+    start = time.time()
 
     search_query = "from:23andMe"
-    rate_delay_seconds = 0
     error_delay_seconds = 5
+    max_threads = 12
 
-    # Example of using TwitterSearch
-    twit = SearchRange(rate_delay_seconds, error_delay_seconds)
+    select_tweets_since = datetime.datetime.strptime("2017-03-02", '%Y-%m-%d')
+    select_tweets_until = datetime.datetime.strptime("2017-07-02", '%Y-%m-%d')
 
-    select_tweets_since = datetime.datetime.strptime("2017-06-01", '%Y-%m-%d')
-    select_tweets_until = datetime.datetime.strptime("2017-07-01", '%Y-%m-%d')
- 
-    twit.search(select_tweets_since, select_tweets_until, search_query)
+    twit = TwitterSearch(error_delay_seconds, select_tweets_since, select_tweets_until, max_threads)
 
-    print("SearchRange collected %i" % twit.counter)
+    alltweets = twit.search(search_query)
+    with open ('tweets2.csv', 'w') as f:
+        w = csv.writer(f)
+        w.writerow(alltweets[0].keys())
+        for tweet in alltweets:
+            w.writerow(tweet.values())
+
+    end = time.time()
+    ttime = end-start
+    print("time ellapsed %i" % (int(ttime)))
 
