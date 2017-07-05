@@ -19,27 +19,24 @@ __author__ = 'Eugene Oh'
 class SearchRange (object):
     def __init__ (self, error_delay=5):
         self.error_delay = error_delay
-        self.lock = threading.Lock()
 
     def searchRange (self, since, until, query):
 
         url = self.getURL(since, until, query)
         response = self.getResponse(url)
 
-        if response is not None:
-            tweets = self.parse(response)
-            self.save_tweets(tweets)
-
+        tweets = self.parse(response)
+        self.save_tweets(tweets)
 
     def getResponse(self, url):
         pause = 0.5
-        driver = webdriver.Firefox()
+        driver = webdriver.Chrome()
         driver.get(url)
         height = driver.execute_script("return document.body.scrollHeight;")
         count = 0
 
         check = driver.find_element_by_class_name("back-to-top").is_displayed()
-        while check is not True and count > 0:
+        while check is not True and count < 1:
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             sleep(pause)
             if driver.find_element_by_class_name("stream-fail-container").is_displayed():
@@ -50,7 +47,7 @@ class SearchRange (object):
             newheight = driver.execute_script("return document.body.scrollHeight;")
             if height == newheight:
                 count += 1
-                sleep(20)
+                sleep(23)
 
         page_source = driver.page_source
         driver.close()
@@ -152,7 +149,7 @@ class TwitterSearch (SearchRange):
         self.since = since
         self.until = until
         self.threads = threads
-        self.alltweets = []
+        self.lock = threading.Lock()
 
     def search(self, query):
         n_days = (self.until-self.since).days
@@ -160,7 +157,7 @@ class TwitterSearch (SearchRange):
         print (n_days)
         for i in range (0, n_days, 120):
             since_range = self.since + datetime.timedelta(days=i)
-            until_range = self.since + datetime.timedelta(days=(i+120))
+            until_range = self.since + datetime.timedelta(days=(i+140))
             if until_range > self.until:
                 until_range = self.until
 
@@ -168,17 +165,19 @@ class TwitterSearch (SearchRange):
 
         tp.shutdown(wait = True)
 
-        return self.alltweets
-
     def save_tweets(self, tweets):
         with self.lock:
-            self.alltweets.extend(tweets)
+            with open ('tweets.csv', 'a+') as f:
+                w = csv.writer(f)
+                for tweet in tweets:
+                    w.writerow(tweet.values())
 
 if __name__ == '__main__':
     #log.basicConfig(level=log.INFO)
     start = time.time()
     error_delay_seconds = 5
     max_threads = 12
+
     with open ('userInfo.txt', 'r') as fl:
         query = fl.readline()
         while query:
@@ -189,13 +188,9 @@ if __name__ == '__main__':
             select_tweets_until = datetime.datetime.strptime(until.strip(), '%Y-%m-%d')
 
             twit = TwitterSearch(error_delay_seconds, select_tweets_since, select_tweets_until, max_threads)
-            alltweets = twit.search(search_query)
+            twit.search(search_query)
             query = fl.readline()
 
-        with open ('tweets.csv', 'a') as f:
-            w = csv.writer(f)
-            for tweet in alltweets:
-                w.writer(tweet.values())
     end = time.time()
     ttime = end-start
     print("time ellapsed %i" % (int(ttime)))
