@@ -33,7 +33,7 @@ class SearchRange (object):
 
     def getResponse(self, url):
         pause = 0.5
-        driver = webdriver.Firefox()
+        driver = webdriver.Safari()
         driver.get(url)
         height = driver.execute_script("return document.body.scrollHeight;")
         count = 0
@@ -162,8 +162,7 @@ class TwitterSearch (SearchRange):
         super(TwitterSearch, self).__init__(error_delay_seconds)
         self.since = since
         self.until = until
-        self.threads = threads
-        self.alltweets = []
+        self.threads = threads 
 
     def search(self, query):
         n_days = (self.until-self.since).days
@@ -182,8 +181,11 @@ class TwitterSearch (SearchRange):
 
     def save_tweets(self, tweets):
         with self.lock:
-            self.alltweets.extend(tweets)
-
+			with open ('tweets.csv', 'a') as f:
+			w = csv.writer(f)
+			w.writerow(tweets[0].keys())
+			for tweet in alltweets:
+				w.writerow(tweet.values())
 
 
 if __name__ == '__main__':
@@ -204,12 +206,6 @@ if __name__ == '__main__':
             twit = TwitterSearch(error_delay_seconds, select_tweets_since, select_tweets_until, max_threads)
             alltweets.extend(twit.search(search_query))
             query = fl.readline()
-
-    with open ('tweets.csv', 'w') as f:
-        w = csv.writer(f)
-        w.writerow(alltweets[0].keys())
-        for tweet in alltweets:
-            w.writerow(tweet.values())
 
     end = time.time()
     ttime = end-start
