@@ -33,39 +33,28 @@ class SearchRange (object):
 
     def getResponse(self, url):
         pause = 0.5
-        driver = webdriver.Safari()
+        driver = webdriver.Firefox()
         driver.get(url)
         height = driver.execute_script("return document.body.scrollHeight;")
         count = 0
 
-        try:
-            check = driver.find_element_by_class_name("back-to-top").is_displayed()
-            while check is not True:
-                driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        check = driver.find_element_by_class_name("back-to-top").is_displayed()
+        while check is not True and count > 0:
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            sleep(pause)
+            if driver.find_element_by_class_name("stream-fail-container").is_displayed():
+                driver.find_element_by_class_name("try-again-after-whale").click()
                 sleep(pause)
-                if driver.find_element_by_class_name("stream-fail-container").is_displayed():
-                    driver.find_element_by_class_name("try-again-after-whale").click()
-                    sleep(pause)
-                check = driver.find_element_by_class_name("back-to-top").is_displayed()
+            check = driver.find_element_by_class_name("back-to-top").is_displayed()
 
-                newheight = driver.execute_script("return document.body.scrollHeight;")
-                if height == newheight and count == 1:
-                    page_source = driver.page_source
-                    driver.close()
-                    return page_source
-                elif height == newheight:
-                    count += 1
-                    sleep(20)
-                    continue
+            newheight = driver.execute_script("return document.body.scrollHeight;")
+            if height == newheight:
+                count += 1
+                sleep(20)
 
-            page_source = driver.page_source
-            driver.close()
-            return page_source
-        except NoSuchElementException:
-            driver.close()
-            print("nothing on this day")
-            return None
-
+        page_source = driver.page_source
+        driver.close()
+        return page_source
     def getURL (self, since, until, query):
         params = {
             'f':'tweets',
@@ -162,38 +151,34 @@ class TwitterSearch (SearchRange):
         super(TwitterSearch, self).__init__(error_delay_seconds)
         self.since = since
         self.until = until
-        self.threads = threads 
+        self.threads = threads
+        self.alltweets = []
 
     def search(self, query):
         n_days = (self.until-self.since).days
         tp = ThreadPoolExecutor(max_workers=self.threads)
         print (n_days)
-        for i in range (0, n_days, 180):
+        for i in range (0, n_days, 120):
             since_range = self.since + datetime.timedelta(days=i)
-            until_range = self.since + datetime.timedelta(days=(i+180))
+            until_range = self.since + datetime.timedelta(days=(i+120))
             if until_range > self.until:
                 until_range = self.until
 
             tp.submit(self.searchRange, since_range, until_range, query)
 
         tp.shutdown(wait = True)
+
         return self.alltweets
 
     def save_tweets(self, tweets):
         with self.lock:
-			with open ('tweets.csv', 'a') as f:
-			w = csv.writer(f)
-			w.writerow(tweets[0].keys())
-			for tweet in alltweets:
-				w.writerow(tweet.values())
-
+            self.alltweets.extend(tweets)
 
 if __name__ == '__main__':
     #log.basicConfig(level=log.INFO)
     start = time.time()
-    alltweets = []
     error_delay_seconds = 5
-    max_threads = 8
+    max_threads = 12
     with open ('userInfo.txt', 'r') as fl:
         query = fl.readline()
         while query:
@@ -204,9 +189,13 @@ if __name__ == '__main__':
             select_tweets_until = datetime.datetime.strptime(until.strip(), '%Y-%m-%d')
 
             twit = TwitterSearch(error_delay_seconds, select_tweets_since, select_tweets_until, max_threads)
-            alltweets.extend(twit.search(search_query))
+            alltweets = twit.search(search_query)
             query = fl.readline()
 
+        with open ('tweets.csv', 'a') as f:
+            w = csv.writer(f)
+            for tweet in alltweets:
+                w.writer(tweet.values())
     end = time.time()
     ttime = end-start
     print("time ellapsed %i" % (int(ttime)))
