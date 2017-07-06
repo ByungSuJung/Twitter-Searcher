@@ -176,7 +176,7 @@ if __name__ == '__main__':
     #log.basicConfig(level=log.INFO)
     start = time.time()
     error_delay_seconds = 5
-    max_threads = 14
+    max_threads = 12
 
     with open ('userInfo.txt', 'r') as fl:
         query = fl.readline()
