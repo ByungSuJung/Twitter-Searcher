@@ -5,6 +5,7 @@ import datetime
 import logging as log
 import threading
 import time
+import os.path
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
@@ -167,10 +168,13 @@ class TwitterSearch (SearchRange):
 
     def save_tweets(self, tweets):
         with self.lock:
-            with open ('tweets.csv', 'a+') as f:
-                w = csv.writer(f)
+            file_exists = os.path.isfile("tweets.csv")
+            with open ('tweets.csv', 'a') as f:
+                w = csv.DictWriter(f, fieldnames = tweets[0].keys())
+                if not file_exists:
+                    w.writeheader()
                 for tweet in tweets:
-                    w.writerow(tweet.values())
+                    w.writerow(tweet)
 
 if __name__ == '__main__':
     #log.basicConfig(level=log.INFO)
