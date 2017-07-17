@@ -156,9 +156,9 @@ class TwitterSearch (SearchRange):
         n_days = (self.until-self.since).days
         tp = ThreadPoolExecutor(max_workers=self.threads)
         print (n_days)
-        for i in range (0, n_days, 120):
+        for i in range (0, n_days, 100):
             since_range = self.since + datetime.timedelta(days=i)
-            until_range = self.since + datetime.timedelta(days=(i+140))
+            until_range = self.since + datetime.timedelta(days=(i+100))
             if until_range > self.until:
                 until_range = self.until
 
@@ -180,9 +180,9 @@ if __name__ == '__main__':
     #log.basicConfig(level=log.INFO)
     start = time.time()
     error_delay_seconds = 5
-    max_threads = 10
+    max_threads = 12
 
-    with open ('userInfo.txt', 'r') as fl:
+    with open ('userInfo/userInfo1.txt', 'r') as fl:
         query = fl.readline()
         while query:
             search_query = "from:" + query
