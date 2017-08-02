@@ -18,7 +18,7 @@ from time import sleep
 __author__ = 'Eugene Oh'
 
 class SearchRange (object):
-    def __init__ (self, error_delay=5):
+    def __init__ (self, error_delay):
         self.error_delay = error_delay
 
     def searchRange (self, since, until, query):
@@ -30,25 +30,24 @@ class SearchRange (object):
         self.save_tweets(tweets)
 
     def getResponse(self, url):
-        pause = 0.5
-        driver = webdriver.Chrome("/mnt/c/webdrivers/chromedriver.exe")
+        driver = webdriver.Chrome()
         driver.get(url)
         height = driver.execute_script("return document.body.scrollHeight;")
         count = 0
-
+        
         check = driver.find_element_by_class_name("back-to-top").is_displayed()
+        
         while check is not True and count < 1:
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            sleep(pause)
             if driver.find_element_by_class_name("stream-fail-container").is_displayed():
                 driver.find_element_by_class_name("try-again-after-whale").click()
-                sleep(pause)
+                sleep(self.error_delay)
             check = driver.find_element_by_class_name("back-to-top").is_displayed()
 
             newheight = driver.execute_script("return document.body.scrollHeight;")
             if height == newheight:
                 count += 1
-                sleep(15)
+                sleep(self.error_delay)
 
         page_source = driver.page_source
         driver.close()
@@ -156,7 +155,7 @@ class TwitterSearch (SearchRange):
     def search(self, query):
         n_days = (self.until-self.since).days
         tp = ThreadPoolExecutor(max_workers=self.threads)
-        print (n_days)
+        print ("Searching through " + str(n_days) + " days in "+ query)
         for i in range (0, n_days, 100):
             since_range = self.since + datetime.timedelta(days=i)
             until_range = self.since + datetime.timedelta(days=(i+100))
@@ -166,7 +165,7 @@ class TwitterSearch (SearchRange):
             tp.submit(self.searchRange, since_range, until_range, query)
 
         tp.shutdown(wait = True)
-
+        print("Done searching" + query + "!")
     def save_tweets(self, tweets):
         with self.lock:
             file_exists = os.path.isfile("tweets.csv")
@@ -178,15 +177,18 @@ class TwitterSearch (SearchRange):
                     w.writerow(tweet)
 
 if __name__ == '__main__':
-    #log.basicConfig(level=log.INFO)
+    print("Welcome to Twitter Scrapper! \n Please make sure you have read the README before you begin. \n Lets get started!")
+    fname = input("Enter the path of the formatted query .txt file (See README for example) \n")
+    max_threads = int(input("Enter in the maximum number of windows to use. (See README for more details) \n"))
+    print("Starting to search now! Kick back and relax!")
+    
     start = time.time()
     error_delay_seconds = 5
-    max_threads = 8
 
-    with open ('userInfo4.txt', 'r') as fl:
+    with open (fname, 'r') as fl:
         query = fl.readline()
         while query:
-            search_query = "#" + query
+            search_query = query
             since = fl.readline()
             until = fl.readline()
             select_tweets_since = datetime.datetime.strptime(since.strip(), '%Y-%m-%d')
