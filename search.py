@@ -26,7 +26,7 @@ class SearchRange (object):
         url = self.getURL(since, until, query)
         response = self.getResponse(url)
 
-        tweets = self.parse(response)
+        tweets = self.parse(response, query)
         self.save_tweets(tweets)
 
     def getResponse(self, url):
@@ -48,7 +48,7 @@ class SearchRange (object):
             newheight = driver.execute_script("return document.body.scrollHeight;")
             if height == newheight:
                 count += 1
-                sleep(23)
+                sleep(15)
 
         page_source = driver.page_source
         driver.close()
@@ -62,14 +62,15 @@ class SearchRange (object):
         return parse.urlunparse(url_tupple)
 
     @staticmethod
-    def parse(items_html):
+    def parse(items_html, query):
         soup = BeautifulSoup (items_html, "html.parser")
         tweets = []
         for li in soup.find_all("li", class_='js-stream-item'):
             if 'data-item-id' not in li.attrs:
                 continue
 
-            tweet = {
+            tweet = { 
+                'query' : query,
                 'user_id': None,
                 'tweet_id' : li['data-item-id'],
                 'created_at' : None,
@@ -148,7 +149,7 @@ class TwitterSearch (SearchRange):
         #Initialize Variables
         super(TwitterSearch, self).__init__(error_delay_seconds)
         self.since = since
-        self.until = until
+        self.until = until 
         self.threads = threads
         self.lock = threading.Lock()
 
@@ -180,9 +181,9 @@ if __name__ == '__main__':
     #log.basicConfig(level=log.INFO)
     start = time.time()
     error_delay_seconds = 5
-    max_threads = 5
+    max_threads = 8
 
-    with open ('userInfo/userInfo16.txt', 'r') as fl:
+    with open ('userInfo/userInfo0.txt', 'r') as fl:
         query = fl.readline()
         while query:
             search_query = "#" + query
