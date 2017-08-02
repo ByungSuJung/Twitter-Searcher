@@ -183,7 +183,7 @@ if __name__ == '__main__':
     error_delay_seconds = 5
     max_threads = 8
 
-    with open ('userInfo/userInfo0.txt', 'r') as fl:
+    with open ('userInfo4.txt', 'r') as fl:
         query = fl.readline()
         while query:
             search_query = "#" + query
