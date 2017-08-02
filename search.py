@@ -31,7 +31,7 @@ class SearchRange (object):
 
     def getResponse(self, url):
         pause = 0.5
-        driver = webdriver.Chrome()
+        driver = webdriver.Chrome("/mnt/c/webdrivers/chromedriver.exe")
         driver.get(url)
         height = driver.execute_script("return document.body.scrollHeight;")
         count = 0
@@ -180,12 +180,12 @@ if __name__ == '__main__':
     #log.basicConfig(level=log.INFO)
     start = time.time()
     error_delay_seconds = 5
-    max_threads = 12
+    max_threads = 5
 
-    with open ('userInfo/userInfo1.txt', 'r') as fl:
+    with open ('userInfo/userInfo16.txt', 'r') as fl:
         query = fl.readline()
         while query:
-            search_query = "from:" + query
+            search_query = "#" + query
             since = fl.readline()
             until = fl.readline()
             select_tweets_since = datetime.datetime.strptime(since.strip(), '%Y-%m-%d')
