@@ -31,30 +31,23 @@ class SearchRange (object):
         self.save_tweets(tweets)
 
     def getResponse(self, url):
-        driver = webdriver.Chrome("/mnt/c/webdrivers/chromedriver.exe")
+        driver = webdriver.Chrome()
         driver.get(url)
         height = driver.execute_script("return document.body.scrollHeight;")
         count = 0
-        check = driver.find_element_by_css_selector(".back-to-top").is_displayed()
-
-        try:
-            driver.find_element_by_css_selector(".SearchEmptyTimeline-emptyDescription")
-            driver.close()
-            check2 = True
-        except NoSuchElementException:
-            driver.close()
-            check2 = False
+        if (len(driver.find_elements_by_css_selector(".SearchEmptyTimeline-emptyDescription")) == 1 or
+            len(driver.find_elements_by_css_selector(".back-to-top")) == 1):
+            check = True
         
-        check = check or check2
-
         while check is not True and count < 1:
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             
-            if driver.find_element_by_css_selector(".stream-fail-container").is_displayed():
+            if len(driver.find_elements_by_css_selector(".stream-fail-container")) == 1:
                 driver.find_element_by_css_selector(".try-again-after-whale").click()
                 sleep(self.error_delay)
             
-            check = driver.find_element_by_css_selector(".back-to-top").is_displayed()
+            if len(driver.find_element_by_css_selector(".back-to-top").is_displayed()) == 1:
+                check = True
 
             newheight = driver.execute_script("return document.body.scrollHeight;")
             if height == newheight:
@@ -208,9 +201,9 @@ if __name__ == '__main__':
     #         twit.search(search_query)
     #         query = fl.readline()
 
-    search_query = "from:e_oh12"
+    search_query = "from:23andMe"
     select_tweets_since = datetime.datetime.strptime("2015-09-01", '%Y-%m-%d')
-    select_tweets_until = datetime.datetime.strptime("2017-08-4", '%Y-%m-%d')
+    select_tweets_until = datetime.datetime.strptime("2017-08-04", '%Y-%m-%d')
 
     twit = TwitterSearch(error_delay_seconds, select_tweets_since, select_tweets_until, max_threads)
     twit.search(search_query)
