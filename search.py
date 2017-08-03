@@ -9,6 +9,7 @@ import os.path
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
+from selenium.common.exceptions import NoSuchElementException
 from urllib import parse
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor
@@ -30,19 +31,30 @@ class SearchRange (object):
         self.save_tweets(tweets)
 
     def getResponse(self, url):
-        driver = webdriver.Chrome()
+        driver = webdriver.Chrome("/mnt/c/webdrivers/chromedriver.exe")
         driver.get(url)
         height = driver.execute_script("return document.body.scrollHeight;")
         count = 0
+        check = driver.find_element_by_css_selector(".back-to-top").is_displayed()
+
+        try:
+            driver.find_element_by_css_selector(".SearchEmptyTimeline-emptyDescription")
+            driver.close()
+            check2 = True
+        except NoSuchElementException:
+            driver.close()
+            check2 = False
         
-        check = driver.find_element_by_class_name("back-to-top").is_displayed()
-        
+        check = check or check2
+
         while check is not True and count < 1:
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            if driver.find_element_by_class_name("stream-fail-container").is_displayed():
-                driver.find_element_by_class_name("try-again-after-whale").click()
+            
+            if driver.find_element_by_css_selector(".stream-fail-container").is_displayed():
+                driver.find_element_by_css_selector(".try-again-after-whale").click()
                 sleep(self.error_delay)
-            check = driver.find_element_by_class_name("back-to-top").is_displayed()
+            
+            check = driver.find_element_by_css_selector(".back-to-top").is_displayed()
 
             newheight = driver.execute_script("return document.body.scrollHeight;")
             if height == newheight:
@@ -154,17 +166,15 @@ class TwitterSearch (SearchRange):
 
     def search(self, query):
         n_days = (self.until-self.since).days
-        tp = ThreadPoolExecutor(max_workers=self.threads)
         print ("Searching through " + str(n_days) + " days in "+ query)
-        for i in range (0, n_days, 100):
-            since_range = self.since + datetime.timedelta(days=i)
-            until_range = self.since + datetime.timedelta(days=(i+100))
-            if until_range > self.until:
-                until_range = self.until
+        with ThreadPoolExecutor(max_workers=self.threads) as tp:
+            for i in range (0, n_days, 100):
+                since_range = self.since + datetime.timedelta(days=i)
+                until_range = self.since + datetime.timedelta(days=(i+100))
+                if until_range > self.until:
+                    until_range = self.until
+                tp.submit(self.searchRange, since_range, until_range, query)
 
-            tp.submit(self.searchRange, since_range, until_range, query)
-
-        tp.shutdown(wait = True)
         print("Done searching" + query + "!")
     def save_tweets(self, tweets):
         with self.lock:
@@ -185,19 +195,25 @@ if __name__ == '__main__':
     start = time.time()
     error_delay_seconds = 5
 
-    with open (fname, 'r') as fl:
-        query = fl.readline()
-        while query:
-            search_query = query
-            since = fl.readline()
-            until = fl.readline()
-            select_tweets_since = datetime.datetime.strptime(since.strip(), '%Y-%m-%d')
-            select_tweets_until = datetime.datetime.strptime(until.strip(), '%Y-%m-%d')
+    # with open (fname, 'r') as fl:
+    #     query = fl.readline()
+    #     while query:
+    #         search_query = query
+    #         since = fl.readline()
+    #         until = fl.readline()
+    #         select_tweets_since = datetime.datetime.strptime(since.strip(), '%Y-%m-%d')
+    #         select_tweets_until = datetime.datetime.strptime(until.strip(), '%Y-%m-%d')
 
-            twit = TwitterSearch(error_delay_seconds, select_tweets_since, select_tweets_until, max_threads)
-            twit.search(search_query)
-            query = fl.readline()
+    #         twit = TwitterSearch(error_delay_seconds, select_tweets_since, select_tweets_until, max_threads)
+    #         twit.search(search_query)
+    #         query = fl.readline()
 
+    search_query = "from:e_oh12"
+    select_tweets_since = datetime.datetime.strptime("2015-09-01", '%Y-%m-%d')
+    select_tweets_until = datetime.datetime.strptime("2017-08-4", '%Y-%m-%d')
+
+    twit = TwitterSearch(error_delay_seconds, select_tweets_since, select_tweets_until, max_threads)
+    twit.search(search_query)
     end = time.time()
     ttime = end-start
     print("time ellapsed %i" % (int(ttime)))
