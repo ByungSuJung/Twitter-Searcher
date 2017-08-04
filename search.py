@@ -1,15 +1,12 @@
 import json
-import requests
 import csv
 import datetime
-import logging as log
 import threading
 import time
 import os.path
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
-from selenium.common.exceptions import NoSuchElementException
 from urllib import parse
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor
@@ -35,18 +32,19 @@ class SearchRange (object):
         driver.get(url)
         height = driver.execute_script("return document.body.scrollHeight;")
         count = 0
-        if (len(driver.find_elements_by_css_selector(".SearchEmptyTimeline-emptyDescription")) == 1 or
-            len(driver.find_elements_by_css_selector(".back-to-top")) == 1):
+        check = len(driver.find_elements_by_css_selector(".SearchEmptyTimeline-emptyDescription")) == 1
+
+        if check is not True and driver.find_element_by_css_selector(".stream-end-inner").is_displayed():
             check = True
-        
+            
         while check is not True and count < 1:
             driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            
-            if len(driver.find_elements_by_css_selector(".stream-fail-container")) == 1:
+            sleep(0.5)
+            if driver.find_element_by_css_selector(".stream-fail-container").is_displayed():
                 driver.find_element_by_css_selector(".try-again-after-whale").click()
                 sleep(self.error_delay)
             
-            if len(driver.find_element_by_css_selector(".back-to-top").is_displayed()) == 1:
+            if driver.find_element_by_css_selector(".back-to-top").is_displayed():
                 check = True
 
             newheight = driver.execute_script("return document.body.scrollHeight;")
@@ -181,32 +179,33 @@ class TwitterSearch (SearchRange):
 
 if __name__ == '__main__':
     print("Welcome to Twitter Scrapper! \n Please make sure you have read the README before you begin. \n Lets get started!")
+    
     fname = input("Enter the path of the formatted query .txt file (See README for example) \n")
+    file_exists = os.path.isfile(fname)
+    while (file_exists is not True):
+        print ("Invalid file path. Please try again. \n")
+        fname = input("Enter the path of the formatted query .txt file (See README for example) \n")
+        file_exists = os.path.isfile(fname)
+    
     max_threads = int(input("Enter in the maximum number of windows to use. (See README for more details) \n"))
     print("Starting to search now! Kick back and relax!")
     
     start = time.time()
-    error_delay_seconds = 5
+    error_delay_seconds = 4
 
-    # with open (fname, 'r') as fl:
-    #     query = fl.readline()
-    #     while query:
-    #         search_query = query
-    #         since = fl.readline()
-    #         until = fl.readline()
-    #         select_tweets_since = datetime.datetime.strptime(since.strip(), '%Y-%m-%d')
-    #         select_tweets_until = datetime.datetime.strptime(until.strip(), '%Y-%m-%d')
+    with open (fname, 'r') as fl:
+        query = fl.readline()
+        while query:
+            search_query = query
+            since = fl.readline()
+            until = fl.readline()
+            select_tweets_since = datetime.datetime.strptime(since.strip(), '%Y-%m-%d')
+            select_tweets_until = datetime.datetime.strptime(until.strip(), '%Y-%m-%d')
 
-    #         twit = TwitterSearch(error_delay_seconds, select_tweets_since, select_tweets_until, max_threads)
-    #         twit.search(search_query)
-    #         query = fl.readline()
-
-    search_query = "from:23andMe"
-    select_tweets_since = datetime.datetime.strptime("2015-09-01", '%Y-%m-%d')
-    select_tweets_until = datetime.datetime.strptime("2017-08-04", '%Y-%m-%d')
-
-    twit = TwitterSearch(error_delay_seconds, select_tweets_since, select_tweets_until, max_threads)
-    twit.search(search_query)
+            twit = TwitterSearch(error_delay_seconds, select_tweets_since, select_tweets_until, max_threads)
+            twit.search(search_query)
+            query = fl.readline()
+    
     end = time.time()
     ttime = end-start
-    print("time ellapsed %i" % (int(ttime)))
+    print("Time ellapsed: %i" % (int(ttime)))
